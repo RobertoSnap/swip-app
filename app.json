@@ -1,7 +1,7 @@
 {
   "expo": {
-    "name": "swip-app-8",
-    "slug": "swip-app-8",
+    "name": "swip-app",
+    "slug": "swip-app",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
@@ -25,6 +25,18 @@
     },
     "web": {
       "favicon": "./assets/favicon.png"
+    },
+    "plugins": [
+      [
+        "expo-barcode-scanner",
+        {
+          "cameraPermission": "Allow $(PRODUCT_NAME) to access camera."
+        }
+      ]
+    ],
+    "extra": {
+      "WALLET_CONNECT_PROJECT_ID": "b8ed0ff7ca691af14cbea6ab49907515",
+      "WALLET_CONNECT_RELAY_URL": "wss://relay.walletconnect.com"
     }
   }
 }
