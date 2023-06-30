@@ -1,17 +1,17 @@
 
-export interface Organization {
+interface Organization {
     "@type": string;
     name: string;
     sameas: string;
 }
 
-export interface MonetaryAmount {
+interface MonetaryAmount {
     "@type": string;
     value: number;
     currency: string;
 }
 
-export interface Person {
+interface Person {
     "@type": string;
     givenname: string;
     familyname: string;
@@ -22,18 +22,18 @@ export interface Person {
     birthdate: string;
 }
 
-export interface Country {
+interface Country {
     "@type": string;
     name: string;
 }
 
-export interface PropertyValue {
+interface PropertyValue {
     "@type": string;
     propertyid: string;
     value: string;
 }
 
-export interface Passport {
+interface Passport {
     dateofissue: string;
     dateofexpiry: string;
     issuer: string;
@@ -50,4 +50,8 @@ export interface EmploymentOffer {
     passport: Passport;
     candidatehasrequiredqualifications: boolean;
     infocheckedandcorrect: boolean;
+}
+
+export interface EmploymentOfferPayload {
+    employmentoffer: EmploymentOffer;
 }

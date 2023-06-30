@@ -4,49 +4,53 @@ import "react-native-get-random-values"
 import "@ethersproject/shims"
 import { Wallet, ethers } from 'ethers';
 import { create, } from 'zustand';
-import { persist, createJSONStorage } from 'zustand/middleware';
+import { persist, createJSONStorage, devtools } from 'zustand/middleware';
 import AsyncStorage from "@react-native-async-storage/async-storage"
 import { createWalletConnectClient } from '../utils/wallet-connect-utils';
 import { SignClient } from '@walletconnect/sign-client/dist/types/client';
-import { ProposalTypes, SessionTypes, SignClientTypes, Verify } from '@walletconnect/types';
+import { SessionTypes, SignClientTypes } from '@walletconnect/types';
 import * as didJWT from 'did-jwt';
+import { JWTDecodedWithCredentialType } from '../utils/credential-types';
 
+interface PersistedState {
+  secret: string;
+  receivedJWTs: string[]
+}
 interface State {
-  secret: string | undefined;
+  secret: string;
   ready: boolean;
   activeSession: boolean;
   client: SignClient | undefined;
   sessions: SessionTypes.Struct[]
-  jwt_unverified: string[]
-  jwt_verified: string[]
+  receivedJWTs: string[]
+  requests: SignClientTypes.EventArguments["session_request"][]
   createWallet: () => void;
   getWallet: () => Wallet | undefined;
   init: () => void;
   handleApproveSession: (event: SignClientTypes.EventArguments["session_proposal"]) => Promise<void>;
   handleSessionRequest: (event: SignClientTypes.EventArguments["session_request"]) => Promise<void>;
+  // verifyJWT: (jwt: string) => Promise<didJWT.JWTVerified>;
+  decodeJWT: (jwt: string) => JWTDecodedWithCredentialType;
+  acceptJWT: (jwt: string) => void;
+  approveRequest: (event: SignClientTypes.EventArguments["session_request"], response: any) => Promise<void>;
+  declineRequest: (event: SignClientTypes.EventArguments["session_request"], message: string, data: any) => Promise<void>;
 }
-// export const useStore = create<State & Action>(persist(set => (
-//     {
-//         secret: '',
-//         updateSecret: (secret) =>{
-//             returnset({secret});
-//         },
-//     }
-// ), {name: 'wallet-connect-state'}));
 
-export const useWallet = create<State>()(
+
+
+export const useWallet = create<State, [['zustand/persist', PersistedState]]>(
   persist(
     (set, get) => ({
-      secret: undefined,
+      secret: "",
       ready: false,
       activeSession: false,
       client: undefined,
       sessions: [],
-      jwt_unverified: [],
-      jwt_verified: [],
+      receivedJWTs: [],
+      requests: [],
       getWallet: () => {
         const secret = get().secret;
-        if (!secret) {
+        if (!secret || secret === "") {
           return undefined;
         } else {
           return new ethers.Wallet(secret);
@@ -63,6 +67,32 @@ export const useWallet = create<State>()(
           return { client: client, ready: true };
         });
       },
+      decodeJWT: (jwt: string) => {
+        try {
+          const decoded = didJWT.decodeJWT(jwt);
+          return decoded as JWTDecodedWithCredentialType
+        } catch (error) {
+          console.log("Error verifying JWT", error)
+          throw new Error("Error verifying JWT");
+        }
+      },
+      acceptJWT: (jwt: string) => {
+        return set({ receivedJWTs: [...get().receivedJWTs, jwt] })
+      },
+      // verifyJWT: async (jwt: string) => {
+      //   // TODO - Handle verification of JWT later. Must resolve and know aud etc.
+      //   try {
+      //     let resolver = new Resolver({ ...getResolver({ infuraProjectId: "217473ce815c4fb1821b52667fbfbcca" }) });
+      //     let verificationResponse = await didJWT.verifyJWT(jwt, {
+      //       resolver,
+      //       audience: 'did:ethr:0xf3beac30c498d9e26865f34fcaa57dbb935b0d74'
+      //     })
+      //     return verificationResponse
+      //   } catch (error) {
+      //     console.log("Error verifying JWT", error)
+      //     throw new Error("Error verifying JWT");
+      //   }
+      // },
       handleApproveSession: async (event: SignClientTypes.EventArguments["session_proposal"]) => {
         console.log('Start approve pairing, id: ', event.id);
         const client = get().client;
@@ -82,7 +112,7 @@ export const useWallet = create<State>()(
           namespaces: {
             eip155: {
               accounts: [`eip155:5:${wallet}`],
-              methods: ['personal_sign', 'eth_sendTransaction', 'request_credential', "receive_credential"],
+              methods: ['personal_sign', 'eth_sendTransaction', 'request_credential', "receive_credential", "present_credential"],
               events: ['accountsChanged'],
             },
           },
@@ -101,25 +131,49 @@ export const useWallet = create<State>()(
           throw Error('No client found')
         }
         console.log("event.params.request", event.params.request)
-        if (event.params.request.method === "receive_credential") {
-          if (Array.isArray(event.params.request.params)) {
-            const jwt = event.params.request.params[0];
-            if (typeof jwt === "string") {
-              try {
-                didJWT.decodeJWT(jwt);
-                return set({ jwt_unverified: [...get().jwt_unverified, jwt] });
-              } catch (error) {
-                console.log(error)
-              }
-            }
-          }
+        // receive_credential
+        set({ requests: [...get().requests, event] })
+      },
+      approveRequest: async (event: SignClientTypes.EventArguments["session_request"], response: any) => {
+        const client = get().client;
+        if (!client) {
+          throw Error('No client found')
         }
-      }
+        if (event.params.request.method === "receive_credential") {
+
+        }
+        await client.respond({
+          topic: event.topic,
+          response: {
+            jsonrpc: "2.0",
+            id: event.id,
+            result: response,
+          }
+        });
+        set({ requests: get().requests.filter((r) => r.id !== event.id) })
+      },
+      declineRequest: async (event: SignClientTypes.EventArguments["session_request"], message: string, data: any) => {
+        const client = get().client;
+        if (!client) {
+          throw Error('No client found')
+        }
+        await client.reject({
+          id: event.id,
+          reason: {
+            code: 1,
+            message,
+            data
+          }
+        });
+        set({ requests: get().requests.filter((r) => r.id !== event.id) })
+      },
+
     }),
     {
       name: 'wallet-state', // name of item in the storage (must be unique)
       storage: createJSONStorage(() => AsyncStorage), // (optional) by default the 'localStorage' is used
-      partialize: state => ({ secret: state.secret }),
+      partialize: state => ({ secret: state.secret, receivedJWTs: state.receivedJWTs }),
     },
   ),
 );
+
