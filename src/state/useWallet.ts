@@ -1,6 +1,8 @@
 import React from 'react';
 import '@walletconnect/react-native-compat';
-import { ethers } from 'ethers';
+import "react-native-get-random-values"
+import "@ethersproject/shims"
+import { Wallet, ethers } from 'ethers';
 import { create, } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 import AsyncStorage from "@react-native-async-storage/async-storage"
@@ -18,7 +20,7 @@ interface State {
   jwt_unverified: string[]
   jwt_verified: string[]
   createWallet: () => void;
-  getWallet: () => ethers.Wallet | undefined;
+  getWallet: () => Wallet | undefined;
   init: () => void;
   handleApproveSession: (event: SignClientTypes.EventArguments["session_proposal"]) => Promise<void>;
   handleSessionRequest: (event: SignClientTypes.EventArguments["session_request"]) => Promise<void>;
@@ -79,7 +81,7 @@ export const useWallet = create<State>()(
           id: event.id,
           namespaces: {
             eip155: {
-              accounts: [`eip155:5:${wallet.address}`],
+              accounts: [`eip155:5:${wallet}`],
               methods: ['personal_sign', 'eth_sendTransaction', 'request_credential', "receive_credential"],
               events: ['accountsChanged'],
             },

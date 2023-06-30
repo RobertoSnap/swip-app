@@ -11,21 +11,21 @@ export default function Home() {
   const { init, ready, activeSession, client, handleApproveSession, handleSessionRequest } = useWallet()
 
 
-  // // listen to all wallet connect events
-  // useEffect(() => {
-  //   if (!client) return
-  //   client.on('session_proposal', handleApproveSession);
-  //   client.on('session_request', handleSessionRequest);
-  //   return () => {
-  //     client.removeAllListeners('session_proposal');
-  //     client.removeAllListeners('session_request');
-  //   };
-  // }, [client]);
+  // listen to all wallet connect events
+  useEffect(() => {
+    if (!client) return
+    client.on('session_proposal', handleApproveSession);
+    client.on('session_request', handleSessionRequest);
+    return () => {
+      client.removeAllListeners('session_proposal');
+      client.removeAllListeners('session_request');
+    };
+  }, [client]);
 
-  // // connect on mount
-  // useEffect(() => {
-  //   init()
-  // }, []);
+  // connect on mount
+  useEffect(() => {
+    init()
+  }, []);
 
   // connect on button press
   const connect = async () => {
